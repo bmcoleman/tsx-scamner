@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="theme-color" content="#0a0e1a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="TSX Scanner">
+<title>TSX Scanner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #070b17; --surface: #0d1526; --border: #1e2d4a;
+    --accent: #00e5ff; --accent2: #00ff9d; --danger: #ff4d6d;
+    --warning: #ffc400; --text: #e8f0fe; --muted: #5a7398; --card: #0f1a2e;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Syne', sans-serif; min-height: 100vh; overflow-x: hidden; }
+  body::before {
+    content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background-image: linear-gradient(rgba(0,229,255,.03) 1px, transparent 1px),
+                      linear-gradient(90deg, rgba(0,229,255,.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+  #app { position: relative; z-index: 1; max-width: 480px; margin: 0 auto; padding-bottom: 60px; }
+
+  /* ── HEADER ── */
+  header {
+    background: linear-gradient(180deg, #0a1020, transparent);
+    padding: 20px 20px 0; position: sticky; top: 0; z-index: 100;
+    backdrop-filter: blur(12px); border-bottom: 1px solid var(--border);
+  }
+  .header-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
+  .logo { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--accent); letter-spacing: 3px; text-transform: uppercase; }
+  .logo span { display: block; font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 800; color: var(--text); line-height: 1; margin-top: 2px; }
+  .pill { font-family: 'Space Mono', monospace; font-size: 10px; padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border); color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .pill.live { border-color: var(--accent2); color: var(--accent2); }
+  .pill.err  { border-color: var(--danger);  color: var(--danger); }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); }
+  .pill.live .dot { background: var(--accent2); animation: pulse 1.5s infinite; }
+  .pill.err  .dot { background: var(--danger); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+  @keyframes spin  { to { transform: rotate(360deg); } }
+
+  /* ── TABS ── */
+  .tabs { display: flex; border-bottom: 1px solid var(--border); }
+  .tab {
+    flex: 1; padding: 10px 6px; font-size: 11px; font-weight: 600;
+    letter-spacing: 1px; text-transform: uppercase; text-align: center;
+    cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent;
+    background: none; border-top: none; border-left: none; border-right: none;
+    font-family: 'Syne', sans-serif; transition: color .2s;
+  }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* ── FILTERS ── */
+  .filters { padding: 12px 20px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .chip { font-family: 'Space Mono', monospace; font-size: 10px; padding: 5px 10px; border-radius: 4px; border: 1px solid var(--border); background: var(--surface); color: var(--muted); cursor: pointer; }
+  .chip.active { background: rgba(0,229,255,.1); border-color: var(--accent); color: var(--accent); }
+  .sort-sel { margin-left: auto; background: var(--surface); border: 1px solid var(--border); color: var(--text); font-family: 'Space Mono', monospace; font-size: 10px; padding: 5px 8px; border-radius: 4px; }
+
+  /* ── STATS BAR ── */
+  .sbar { display: flex; padding: 0 20px 14px; }
+  .si { flex: 1; text-align: center; padding: 8px 4px; border: 1px solid var(--border); background: var(--surface); }
+  .si:first-child { border-radius: 6px 0 0 6px; } .si:last-child { border-radius: 0 6px 6px 0; } .si+.si { border-left: none; }
+  .sv { font-family: 'Space Mono', monospace; font-size: 16px; font-weight: 700; color: var(--accent); display: block; }
+  .sl { font-size: 9px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin-top: 2px; display: block; }
+
+  /* ── STOCK LIST ── */
+  #list { padding: 0 12px; }
+  .slabel { font-family: 'Space Mono', monospace; font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); padding: 8px 8px 4px; }
+  .ts { font-family: 'Space Mono', monospace; font-size: 9px; color: var(--muted); text-align: center; padding: 6px 0 2px; letter-spacing: 1px; }
+
+  /* ── CARDS ── */
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; padding: 14px 16px; cursor: pointer; position: relative; overflow: hidden; transition: transform .15s; }
+  .card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--muted); }
+  .card.up::before { background: var(--accent2); } .card.dn::before { background: var(--danger); }
+  .card:active { transform: scale(.98); }
+  .r1 { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
+  .tkr { font-family: 'Space Mono', monospace; font-size: 16px; font-weight: 700; letter-spacing: 1px; }
+  .cn  { font-size: 11px; color: var(--muted); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 175px; }
+  .pb  { text-align: right; }
+  .pv  { font-family: 'Space Mono', monospace; font-size: 18px; font-weight: 700; }
+  .chg { font-family: 'Space Mono', monospace; font-size: 11px; margin-top: 2px; }
+  .chg.up { color: var(--accent2); } .chg.dn { color: var(--danger); }
+  .r2 { display: flex; gap: 12px; margin-top: 8px; }
+  .mi { font-family: 'Space Mono', monospace; font-size: 9px; color: var(--muted); }
+  .mi span { display: block; color: var(--text); font-size: 10px; margin-top: 1px; }
+
+  /* ── WATCHLIST BUTTON ── */
+  .wbtn { background: none; border: 1px solid var(--border); color: var(--muted); font-size: 16px; width: 28px; height: 28px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .wbtn.on { color: var(--warning); border-color: var(--warning); background: rgba(255,196,0,.1); }
+
+  /* ── LOADING / ERROR ── */
+  .lbox { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 20px; gap: 16px; }
+  .spinner { width: 50px; height: 50px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; }
+  .ltxt { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--accent); letter-spacing: 2px; text-align: center; }
+  .lsub { font-size: 11px; color: var(--muted); text-align: center; max-width: 260px; line-height: 1.6; }
+  .ebox { background: rgba(255,77,109,.1); border: 1px solid rgba(255,77,109,.3); border-radius: 8px; padding: 16px; margin: 12px 20px; font-size: 12px; color: var(--danger); text-align: center; line-height: 1.7; }
+  .rbtn { display: flex; align-items: center; justify-content: center; gap: 8px; background: rgba(0,229,255,.1); border: 1px solid var(--accent); color: var(--accent); font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 600; padding: 12px; border-radius: 6px; cursor: pointer; letter-spacing: 1px; margin: 12px 20px; width: calc(100% - 40px); }
+
+  /* ── SETUP SCREEN ── */
+  .setup-box { padding: 24px 20px; }
+  .setup-title { font-size: 20px; font-weight: 800; margin-bottom: 6px; }
+  .setup-sub { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--accent); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 16px; }
+  .setup-body { font-size: 13px; color: var(--muted); line-height: 1.8; margin-bottom: 16px; }
+  .setup-body strong { color: var(--text); }
+  .step { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; margin-bottom: 10px; display: flex; gap: 12px; align-items: flex-start; }
+  .step-num { font-family: 'Space Mono', monospace; font-size: 16px; font-weight: 700; color: var(--accent); flex-shrink: 0; width: 24px; }
+  .step-text { font-size: 12px; color: var(--muted); line-height: 1.7; }
+  .step-text strong { color: var(--text); display: block; margin-bottom: 2px; }
+  .step-text a { color: var(--accent); word-break: break-all; }
+  .key-input { width: 100%; background: var(--bg); border: 1px solid var(--accent); border-radius: 6px; padding: 10px 12px; color: var(--text); font-family: 'Space Mono', monospace; font-size: 12px; margin-top: 8px; outline: none; }
+  .key-input::placeholder { color: var(--muted); }
+  .go-btn { background: var(--accent); color: var(--bg); border: none; border-radius: 6px; padding: 12px; font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 800; width: 100%; cursor: pointer; letter-spacing: 1px; margin-top: 8px; }
+
+  /* ── DETAIL VIEW ── */
+  #dv { display: none; position: fixed; inset: 0; background: var(--bg); z-index: 200; overflow-y: auto; padding-bottom: 40px; }
+  .dh { display: flex; align-items: center; gap: 12px; padding: 18px 20px 14px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--bg); backdrop-filter: blur(12px); z-index: 10; }
+  .back { width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 18px; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
+  .dtitle { flex: 1; min-width: 0; }
+  .dtkr  { font-family: 'Space Mono', monospace; font-size: 20px; font-weight: 700; }
+  .dname { font-size: 12px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dpb   { text-align: right; flex-shrink: 0; }
+  .dprice { font-family: 'Space Mono', monospace; font-size: 22px; font-weight: 700; }
+  .dprice.up { color: var(--accent2); } .dprice.dn { color: var(--danger); }
+  .dchg { font-family: 'Space Mono', monospace; font-size: 11px; margin-top: 2px; }
+  .dchg.up { color: var(--accent2); } .dchg.dn { color: var(--danger); }
+
+  /* ── CHART ── */
+  .csec { padding: 16px 20px; }
+  .ptabs { display: flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; margin-bottom: 12px; }
+  .ptab { flex: 1; padding: 8px 4px; font-family: 'Space Mono', monospace; font-size: 10px; text-align: center; cursor: pointer; color: var(--muted); background: var(--surface); border: none; }
+  .ptab.active { background: rgba(0,229,255,.15); color: var(--accent); }
+  .cbox { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 6px 6px; }
+  #dchart { width: 100%; height: 180px; display: block; }
+
+  /* ── 52-WEEK ── */
+  .h52 { display: flex; justify-content: space-around; background: rgba(0,229,255,.04); border: 1px solid rgba(0,229,255,.12); border-radius: 8px; padding: 12px; margin: 0 20px 12px; }
+  .h52i { text-align: center; }
+  .h52l { font-family: 'Space Mono', monospace; font-size: 9px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+  .h52v { font-family: 'Space Mono', monospace; font-size: 13px; font-weight: 700; }
+  .h52v.hi { color: var(--accent2); } .h52v.lo { color: var(--danger); } .h52v.cur { color: var(--accent); }
+
+  /* ── RANGE BAR ── */
+  .rwrap { padding: 0 20px 16px; }
+  .rlbl  { font-family: 'Space Mono', monospace; font-size: 9px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+  .rbar  { height: 6px; background: var(--border); border-radius: 3px; position: relative; }
+  .rfill { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(90deg, var(--danger), var(--accent2)); border-radius: 3px; }
+  .rdot  { position: absolute; top: 50%; transform: translate(-50%,-50%); width: 12px; height: 12px; border-radius: 50%; background: var(--accent); border: 2px solid var(--bg); box-shadow: 0 0 6px var(--accent); }
+  .rends { display: flex; justify-content: space-between; margin-top: 5px; }
+  .rend  { font-family: 'Space Mono', monospace; font-size: 9px; color: var(--muted); }
+
+  /* ── STATS GRID ── */
+  .sgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 0 20px 16px; }
+  .sc  { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+  .scl { font-family: 'Space Mono', monospace; font-size: 9px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+  .scv { font-family: 'Space Mono', monospace; font-size: 14px; font-weight: 700; }
+
+  /* ── 7-DAY TABLE ── */
+  .d7sec { padding: 0 20px 20px; }
+  .stitle { font-family: 'Space Mono', monospace; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--accent); margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+  .drow  { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(30,45,74,.5); }
+  .drow:last-child { border: none; }
+  .ddate { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--muted); min-width: 80px; }
+  .dohlc { font-family: 'Space Mono', monospace; font-size: 9px; color: var(--muted); text-align: center; flex: 1; padding: 0 6px; }
+  .dcls  { font-family: 'Space Mono', monospace; font-size: 13px; font-weight: 700; text-align: right; min-width: 70px; }
+  .dcls.up { color: var(--accent2); } .dcls.dn { color: var(--danger); } .dcls.fl { color: var(--text); }
+
+  /* ── WATCHLIST / ABOUT PANELS ── */
+  #wp { display: none; padding: 0 0 20px; }
+  #ap { display: none; padding: 20px; }
+  .at { font-size: 20px; font-weight: 800; margin-bottom: 4px; }
+  .as { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--accent); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 16px; }
+  .ab { font-size: 13px; color: var(--muted); line-height: 1.8; } .ab strong { color: var(--text); }
+  .iblock { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; margin-top: 12px; font-size: 12px; color: var(--muted); line-height: 1.7; }
+  .iblock strong { color: var(--accent); font-family: 'Space Mono', monospace; font-size: 10px; display: block; margin-bottom: 4px; }
+  .we { text-align: center; padding: 50px 20px; color: var(--muted); font-size: 13px; line-height: 1.7; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ══ HEADER ══ -->
+  <header>
+    <div class="header-top">
+      <div class="logo">TSX<span>Scanner</span></div>
+      <div class="pill" id="pill"><div class="dot"></div><span id="ptxt">LOADING</span></div>
+    </div>
+    <div class="tabs">
+      <button class="tab active" onclick="showPanel('s',this)">📊 Scanner</button>
+      <button class="tab"        onclick="showPanel('w',this)">⭐ Watchlist</button>
+      <button class="tab"        onclick="showPanel('a',this)">ℹ️ About</button>
+    </div>
+  </header>
+
+  <!-- ══ SCANNER PANEL ══ -->
+  <div id="sp">
+
+    <!-- Setup screen (shown when no API key saved) -->
+    <div id="setup-screen" style="display:none">
+      <div class="setup-box">
+        <div class="setup-title">One-Time Setup</div>
+        <div class="setup-sub">Free API Key Required</div>
+        <div class="setup-body">
+          This app uses a free service called <strong>Financial Modeling Prep</strong>
+          to get live TSX stock data. You need a free account. It takes about 2 minutes.
+        </div>
+
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-text">
+            <strong>Go to this website</strong>
+            <a href="https://financialmodelingprep.com/register" target="_blank">
+              financialmodelingprep.com/register
+            </a>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-text">
+            <strong>Create a free account</strong>
+            Enter your email and a password. No credit card needed. Choose the free plan.
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-text">
+            <strong>Find your API key</strong>
+            After logging in, go to your Dashboard. Your API key is shown there.
+            It is a long string of letters and numbers.
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-text">
+            <strong>Paste your key below and tap Start</strong>
+            <input class="key-input" id="keyinput" type="text" placeholder="Paste your API key here…" autocomplete="off" autocorrect="off" spellcheck="false">
+            <button class="go-btn" onclick="saveKey()">▶ Start Scanning TSX</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scanner content (shown after API key saved) -->
+    <div id="scanner-content" style="display:none">
+      <div class="filters">
+        <div class="chip active" onclick="setF('all',this)">All</div>
+        <div class="chip"        onclick="setF('up',this)">▲ Up</div>
+        <div class="chip"        onclick="setF('dn',this)">▼ Down</div>
+        <div class="chip"        onclick="setF('vol',this)">Vol↑</div>
+        <select class="sort-sel" id="ss" onchange="sortRender()">
+          <option value="az">A–Z</option>
+          <option value="pa">Price ↑</option>
+          <option value="pd">Price ↓</option>
+          <option value="gd">Gain ↓</option>
+          <option value="vd">Volume</option>
+        </select>
+      </div>
+      <div class="sbar">
+        <div class="si"><span class="sv" id="sn">—</span><span class="sl">Stocks</span></div>
+        <div class="si"><span class="sv" id="sg" style="color:var(--accent2)">—</span><span class="sl">Up</span></div>
+        <div class="si"><span class="sv" id="sd" style="color:var(--danger)">—</span><span class="sl">Down</span></div>
+        <div class="si"><span class="sv" id="sa">—</span><span class="sl">Avg $</span></div>
+      </div>
+      <div id="list">
+        <div class="lbox">
+          <div class="spinner"></div>
+          <div class="ltxt">SCANNING TSX</div>
+          <div class="lsub">Fetching Canadian stocks under $10…</div>
+        </div>
+      </div>
+    </div>
+  </div><!-- /sp -->
+
+  <!-- ══ WATCHLIST PANEL ══ -->
+  <div id="wp"><div id="wl"></div></div>
+
+  <!-- ══ ABOUT PANEL ══ -->
+  <div id="ap">
+    <div class="at">TSX Scanner</div>
+    <div class="as">Canadian Stocks Under $10</div>
+    <div class="ab">Scans the <strong>Toronto Stock Exchange</strong> for Canadian-listed stocks trading under <strong>$10 CAD</strong>.</div>
+    <div class="iblock">
+      <strong>DATA SOURCE</strong>
+      Financial Modeling Prep free API. Prices may be delayed during market hours (Mon–Fri 9:30AM – 4:00PM Eastern Time).
+    </div>
+    <div class="iblock">
+      <strong>INSTALL ON YOUR ANDROID PHONE</strong>
+      In Chrome, tap the 3 dots ⋮ in the top-right corner, then tap "Add to Home Screen."
+    </div>
+    <div class="iblock">
+      <strong>CHANGE API KEY</strong>
+      <button class="rbtn" style="margin:8px 0 0" onclick="clearKey()">🔑 Enter a New API Key</button>
+    </div>
+    <div class="iblock">
+      <strong>DISCLAIMER</strong>
+      For information only. Not financial advice. Always do your own research before investing.
+    </div>
+    <button class="rbtn" onclick="init()">↻ Refresh Stock Data</button>
+  </div>
+
+</div><!-- /app -->
+
+<!-- ══ DETAIL VIEW (full screen overlay) ══ -->
+<div id="dv">
+  <div class="dh">
+    <div class="back" onclick="closeDV()">←</div>
+    <div class="dtitle">
+      <div class="dtkr" id="dtkr"></div>
+      <div class="dname" id="dname"></div>
+    </div>
+    <div class="dpb">
+      <div class="dprice" id="dpr"></div>
+      <div class="dchg"   id="dch"></div>
+    </div>
+  </div>
+
+  <!-- Period tabs + chart -->
+  <div class="csec">
+    <div class="ptabs">
+      <button class="ptab"        onclick="setPer('7d',this)">7D</button>
+      <button class="ptab"        onclick="setPer('1mo',this)">1M</button>
+      <button class="ptab"        onclick="setPer('3mo',this)">3M</button>
+      <button class="ptab"        onclick="setPer('6mo',this)">6M</button>
+      <button class="ptab active" onclick="setPer('1y',this)">1Y</button>
+    </div>
+    <div class="cbox"><canvas id="dchart"></canvas></div>
+  </div>
+
+  <!-- 52-week high / current / low -->
+  <div class="h52">
+    <div class="h52i"><div class="h52l">52W Low</div><div class="h52v lo"  id="d52l">—</div></div>
+    <div class="h52i"><div class="h52l">Current</div><div class="h52v cur" id="dcur">—</div></div>
+    <div class="h52i"><div class="h52l">52W High</div><div class="h52v hi" id="d52h">—</div></div>
+  </div>
+
+  <!-- Range bar -->
+  <div class="rwrap">
+    <div class="rlbl">52-Week Price Position</div>
+    <div class="rbar">
+      <div class="rfill" id="rf" style="width:50%"></div>
+      <div class="rdot"  id="rd" style="left:50%"></div>
+    </div>
+    <div class="rends">
+      <div class="rend" id="rlo">—</div>
+      <div class="rend" id="rhi">—</div>
+    </div>
+  </div>
+
+  <!-- Key stats grid -->
+  <div class="sgrid">
+    <div class="sc"><div class="scl">Open</div><div class="scv" id="dop">—</div></div>
+    <div class="sc"><div class="scl">Prev Close</div><div class="scv" id="dpc">—</div></div>
+    <div class="sc"><div class="scl">Day High</div><div class="scv" id="dhi">—</div></div>
+    <div class="sc"><div class="scl">Day Low</div><div class="scv" id="dlo">—</div></div>
+    <div class="sc"><div class="scl">Volume</div><div class="scv" id="dvo">—</div></div>
+    <div class="sc"><div class="scl">Avg Volume</div><div class="scv" id="dav">—</div></div>
+    <div class="sc"><div class="scl">Mkt Cap</div><div class="scv" id="dmc">—</div></div>
+    <div class="sc"><div class="scl">Exchange</div><div class="scv">TSX</div></div>
+  </div>
+
+  <!-- Last 7 trading days -->
+  <div class="d7sec">
+    <div class="stitle">LAST 7 TRADING DAYS</div>
+    <div id="d7t">Loading…</div>
+  </div>
+
+  <!-- Watchlist button -->
+  <div style="padding:0 20px 10px">
+    <button class="wbtn" id="dwb"
+      style="width:100%;height:42px;font-size:14px;border-radius:8px"
+      onclick="toggleWD()">☆ Add to Watchlist</button>
+  </div>
+</div><!-- /dv -->
+
+<script>
+'use strict';
+
+// ── CONSTANTS ────────────────────────────────────────────────
+const FMP_BASE = 'https://financialmodelingprep.com/api/v3';
+
+// TSX tickers — all verified to trade on TSX, mostly under $10
+// Free FMP plan supports /quote/{symbol} — we fetch these directly
+const BASE_SYMBOLS = [
+  'MEG.TO','BTE.TO','CPG.TO','TVE.TO','PEY.TO','WCP.TO','ERF.TO','TOU.TO',
+  'VET.TO','GXE.TO','RRX.TO','PHX.TO','KEL.TO','EDV.TO','AGI.TO','IMG.TO',
+  'LUG.TO','ELD.TO','TXG.TO','OGC.TO','WDO.TO','AAB.TO','SSL.TO','GPR.TO',
+  'AUN.TO','BB.TO','DSG.TO','HCG.TO','LB.TO','ACB.TO','OGI.TO','CRON.TO',
+  'HEXO.TO','WELL.TO','MDA.TO','AFN.TO','NPI.TO','BLX.TO','INE.TO','RNW.TO',
+  'BDT.TO','CCA.TO','CMG.TO','CIX.TO','CF.TO','ALS.TO','WFG.TO','SVM.TO',
+  'HBM.TO','NGT.TO','FIL.TO','GGD.TO','MAG.TO','GCG.TO','PVG.TO','CG.TO',
+  'AR.TO','K.TO','CVE.TO','IMO.TO','CNQ.TO','SU.TO','TOG.TO',
+  'NVA.TO','SCR.TO','DML.TO','URE.TO','LAM.TO','PDN.TO','ISO.TO','FSY.TO',
+  'AAR.TO','LGD.TO','GGO.TO','ATC.TO','AT.TO','PGM.TO','EFR.TO','VLE.TO'
+];
+
+// ── STATE ────────────────────────────────────────────────────
+let all = [], filt = [], wl = [], activeF = 'all', curS = null;
+let API_KEY = '';
+
+// Load saved data safely
+try { wl      = JSON.parse(localStorage.getItem('tsx_wl')  || '[]'); } catch(e) { wl = []; }
+try { API_KEY = localStorage.getItem('tsx_key') || ''; }              catch(e) { API_KEY = ''; }
+
+// ── API KEY MANAGEMENT ───────────────────────────────────────
+function saveKey() {
+  const k = (document.getElementById('keyinput').value || '').trim();
+  if (!k) { alert('Please paste your API key first.'); return; }
+  API_KEY = k;
+  try { localStorage.setItem('tsx_key', k); } catch(e) {}
+  showScanner();
+  init();
+}
+
+function clearKey() {
+  API_KEY = '';
+  try { localStorage.removeItem('tsx_key'); } catch(e) {}
+  showSetup();
+}
+
+function showSetup() {
+  document.getElementById('setup-screen').style.display = 'block';
+  document.getElementById('scanner-content').style.display = 'none';
+  setStatus('SETUP', '');
+}
+
+function showScanner() {
+  document.getElementById('setup-screen').style.display = 'none';
+  document.getElementById('scanner-content').style.display = 'block';
+}
+
+// ── FETCH HELPER (no AbortSignal — Android Chrome compatible) ─
+function fetchJSON(url) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Timeout after 20s')), 20000);
+    fetch(url)
+      .then(r => {
+        clearTimeout(timer);
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(resolve)
+      .catch(e => { clearTimeout(timer); reject(e); });
+  });
+}
+
+// ── MAIN INIT ────────────────────────────────────────────────
+async function init() {
+  if (!API_KEY) { showSetup(); return; }
+  showScanner();
+  setStatus('LOADING', '');
+  setLoading('SCANNING TSX…', 'Fetching live stock data…<br>Please wait up to 30 seconds.');
+
+  try {
+    await loadBySymbols();
+  } catch(e) {
+    console.error('Load failed:', e.message);
+    setErr(
+      'Could not load stock data.<br><br>' +
+      '👉 Most likely your API key is wrong.<br><br>' +
+      'To fix this:<br>' +
+      '1. Tap the <strong>ℹ️ About</strong> tab above<br>' +
+      '2. Tap <strong>"Enter a New API Key"</strong><br>' +
+      '3. Go back to <strong>financialmodelingprep.com</strong>,<br>' +
+      '&nbsp;&nbsp;&nbsp;log in, and copy your key again carefully.'
+    );
+    setStatus('ERROR', 'err');
+    addRetryBtn();
+  }
+}
+
+// Load stocks using FMP /quote endpoint — works 24/7, shows last closing prices
+async function loadBySymbols() {
+  const CHUNK = 20;
+  let quotes  = [];
+  let loaded  = 0;
+
+  for (let i = 0; i < BASE_SYMBOLS.length; i += CHUNK) {
+    const chunk   = BASE_SYMBOLS.slice(i, i + CHUNK).join(',');
+    const url     = `${FMP_BASE}/quote/${chunk}?apikey=${API_KEY}`;
+    loaded += Math.min(CHUNK, BASE_SYMBOLS.length - i);
+    setLoading(
+      'SCANNING TSX…',
+      `Loading stocks… (${loaded} of ${BASE_SYMBOLS.length})<br>Please wait.`
+    );
+    try {
+      const data = await fetchJSON(url);
+      if (Array.isArray(data)) quotes = quotes.concat(data);
+    } catch(e) {
+      console.warn('Chunk failed:', e.message);
+      // If the very first chunk fails it's almost certainly a bad API key
+      if (i === 0 && quotes.length === 0) throw new Error('Bad API key or no connection');
+    }
+  }
+
+  if (quotes.length === 0) throw new Error('No data returned');
+
+  // Use previousClose as fallback when market is closed (price may be 0)
+  // This means the app works 24/7 showing last known closing prices
+  all = quotes
+    .filter(q => {
+      const p = q.price > 0 ? q.price : (q.previousClose || 0);
+      return p > 0 && p < 10;
+    })
+    .map(q => {
+      const effectivePrice = q.price > 0 ? q.price : (q.previousClose || 0);
+      return {
+        ticker: q.symbol,
+        name:   q.name  || q.symbol,
+        price:  effectivePrice,
+        change: q.change || 0,
+        pct:    q.changesPercentage || 0,
+        vol:    q.volume    || 0,
+        avgVol: q.avgVolume || 0,
+        open:   q.open          || null,
+        high:   q.dayHigh       || null,
+        low:    q.dayLow        || null,
+        prev:   q.previousClose || null,
+        hi52:   q.yearHigh      || null,
+        lo52:   q.yearLow       || null,
+        cap:    q.marketCap     || null,
+      };
+    });
+
+  if (all.length === 0) {
+    setErr('No data found. Please check your API key is correct,<br>then tap Retry.');
+    setStatus('ERROR', 'err');
+    addRetryBtn();
+    return;
+  }
+
+  finishLoad();
+}
+
+function finishLoad() {
+  updateSB();
+  applyF(activeF);
+  renderList();
+  setStatus('LIVE', 'live');
+}
+
+function addRetryBtn() {
+  const b = document.createElement('button');
+  b.className = 'rbtn';
+  b.textContent = '↻ Retry';
+  b.onclick = init;
+  document.getElementById('list').appendChild(b);
+}
+
+// ── STATS BAR ────────────────────────────────────────────────
+function updateSB() {
+  const up  = all.filter(s => s.change > 0).length;
+  const dn  = all.filter(s => s.change < 0).length;
+  const avg = all.length ? all.reduce((a, b) => a + b.price, 0) / all.length : 0;
+  setText('sn', all.length);
+  setText('sg', up);
+  setText('sd', dn);
+  setText('sa', '$' + avg.toFixed(2));
+}
+
+// ── FILTER + SORT ────────────────────────────────────────────
+function setF(f, el) {
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  activeF = f;
+  applyF(f);
+  renderList();
+}
+
+function applyF(f) {
+  switch(f) {
+    case 'up':  filt = all.filter(s => s.change > 0); break;
+    case 'dn':  filt = all.filter(s => s.change < 0); break;
+    case 'vol': filt = [...all].sort((a, b) => b.vol - a.vol); return;
+    default:    filt = [...all];
+  }
+  doSort();
+}
+
+function doSort() {
+  const v = (document.getElementById('ss') || {}).value || 'az';
+  switch(v) {
+    case 'pa': filt.sort((a, b) => a.price - b.price); break;
+    case 'pd': filt.sort((a, b) => b.price - a.price); break;
+    case 'gd': filt.sort((a, b) => b.pct   - a.pct);   break;
+    case 'vd': filt.sort((a, b) => b.vol   - a.vol);   break;
+    default:   filt.sort((a, b) => a.ticker.localeCompare(b.ticker));
+  }
+}
+
+function sortRender() { doSort(); renderList(); }
+
+// ── RENDER STOCK LIST ────────────────────────────────────────
+function renderList() {
+  const el = document.getElementById('list');
+  if (!filt.length) {
+    el.innerHTML = '<div style="text-align:center;padding:50px 20px;color:var(--muted)">No stocks match this filter.</div>';
+    return;
+  }
+
+  el.innerHTML = `<div class="ts">Updated: ${new Date().toLocaleTimeString('en-CA')}</div>
+                  <div class="slabel">— ${filt.length} STOCKS FOUND —</div>`;
+
+  filt.forEach(s => {
+    const up  = s.change >= 0;
+    const dc  = up ? 'up' : 'dn';
+    const ar  = up ? '▲' : '▼';
+    const inW = wl.includes(s.ticker);
+    const c   = document.createElement('div');
+    c.className = `card ${dc}`;
+    c.innerHTML = `
+      <div class="r1">
+        <div>
+          <div class="tkr">${s.ticker.replace('.TO','')}</div>
+          <div class="cn">${s.name}</div>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:8px">
+          <div class="pb">
+            <div class="pv">$${s.price.toFixed(3)}</div>
+            <div class="chg ${dc}">${ar} ${Math.abs(s.pct).toFixed(2)}%</div>
+          </div>
+          <button class="wbtn ${inW?'on':''}"
+            onclick="event.stopPropagation();tW('${s.ticker}',this)">
+            ${inW ? '★' : '☆'}
+          </button>
+        </div>
+      </div>
+      <div class="r2">
+        <div class="mi">VOL<span>${fv(s.vol)}</span></div>
+        <div class="mi">52W H<span style="color:var(--accent2)">$${(s.hi52||0).toFixed(2)}</span></div>
+        <div class="mi">52W L<span style="color:var(--danger)">$${(s.lo52||0).toFixed(2)}</span></div>
+        <div class="mi">CAP<span>${fc(s.cap)}</span></div>
+      </div>`;
+    c.onclick = () => openDV(s);
+    el.appendChild(c);
+  });
+}
+
+// ── WATCHLIST ────────────────────────────────────────────────
+function tW(ticker, btn) {
+  if (wl.includes(ticker)) {
+    wl = wl.filter(t => t !== ticker);
+    btn.textContent = '☆';
+    btn.classList.remove('on');
+  } else {
+    wl.push(ticker);
+    btn.textContent = '★';
+    btn.classList.add('on');
+  }
+  try { localStorage.setItem('tsx_wl', JSON.stringify(wl)); } catch(e) {}
+}
+
+function toggleWD() {
+  if (!curS) return;
+  const btn = document.getElementById('dwb');
+  const t   = curS.ticker;
+  if (wl.includes(t)) {
+    wl = wl.filter(x => x !== t);
+    btn.textContent = '☆ Add to Watchlist';
+    btn.classList.remove('on');
+  } else {
+    wl.push(t);
+    btn.textContent = '★ In Watchlist';
+    btn.classList.add('on');
+  }
+  try { localStorage.setItem('tsx_wl', JSON.stringify(wl)); } catch(e) {}
+}
+
+function renderWL() {
+  const el = document.getElementById('wl');
+  const stocks = all.filter(s => wl.includes(s.ticker));
+  if (!stocks.length) {
+    el.innerHTML = '<div class="we">⭐ Tap the star ☆ on any stock to save it to your Watchlist.</div>';
+    return;
+  }
+  el.innerHTML = `<div class="slabel" style="padding:12px 20px 4px">— ${stocks.length} WATCHED —</div>`;
+  stocks.forEach(s => {
+    const up = s.change >= 0, dc = up ? 'up' : 'dn', ar = up ? '▲' : '▼';
+    const c  = document.createElement('div');
+    c.className = `card ${dc}`;
+    c.style.margin = '0 12px 8px';
+    c.innerHTML = `
+      <div class="r1">
+        <div><div class="tkr">${s.ticker.replace('.TO','')}</div><div class="cn">${s.name}</div></div>
+        <div class="pb">
+          <div class="pv">$${s.price.toFixed(3)}</div>
+          <div class="chg ${dc}">${ar} ${Math.abs(s.pct).toFixed(2)}%</div>
+        </div>
+      </div>`;
+    c.onclick = () => openDV(s);
+    el.appendChild(c);
+  });
+}
+
+// ── PANEL NAVIGATION ─────────────────────────────────────────
+function showPanel(n, el) {
+  document.getElementById('sp').style.display = 'none';
+  document.getElementById('wp').style.display = 'none';
+  document.getElementById('ap').style.display = 'none';
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(n + 'p').style.display = 'block';
+  if (el) el.classList.add('active');
+  if (n === 'w') renderWL();
+}
+
+// ── DETAIL VIEW ──────────────────────────────────────────────
+async function openDV(s) {
+  curS = s;
+
+  setText('dtkr', s.ticker.replace('.TO', ''));
+  setText('dname', s.name);
+  setText('dpr',  '$' + s.price.toFixed(3));
+  document.getElementById('dpr').className = 'dprice ' + (s.change >= 0 ? 'up' : 'dn');
+
+  const ar = s.change >= 0 ? '▲' : '▼';
+  const dc = s.change >= 0 ? 'up' : 'dn';
+  setText('dch', `${ar} ${Math.abs(s.pct).toFixed(2)}%  (${s.change >= 0 ? '+' : ''}${s.change.toFixed(3)})`);
+  document.getElementById('dch').className = 'dchg ' + dc;
+
+  // Key stats — some may be null if loaded via screener
+  setText('dop',  s.open  ? '$' + s.open.toFixed(3)  : '—');
+  setText('dpc',  s.prev  ? '$' + s.prev.toFixed(3)  : '—');
+  setText('dhi',  s.high  ? '$' + s.high.toFixed(3)  : '—');
+  setText('dlo',  s.low   ? '$' + s.low.toFixed(3)   : '—');
+  setText('dvo',  fv(s.vol));
+  setText('dav',  fv(s.avgVol));
+  setText('dmc',  fc(s.cap));
+
+  // 52-week display
+  setText('d52h', s.hi52 ? '$' + s.hi52.toFixed(2) : '—');
+  setText('d52l', s.lo52 ? '$' + s.lo52.toFixed(2) : '—');
+  setText('dcur', '$' + s.price.toFixed(3));
+
+  // Range bar
+  if (s.hi52 && s.lo52 && s.hi52 > s.lo52) {
+    const pct = Math.min(100, Math.max(0,
+      ((s.price - s.lo52) / (s.hi52 - s.lo52)) * 100
+    )).toFixed(1);
+    document.getElementById('rf').style.width = pct + '%';
+    document.getElementById('rd').style.left  = pct + '%';
+    setText('rlo', '$' + s.lo52.toFixed(2));
+    setText('rhi', '$' + s.hi52.toFixed(2));
+  }
+
+  // Watchlist button state
+  const wb = document.getElementById('dwb');
+  wb.textContent  = wl.includes(s.ticker) ? '★ In Watchlist' : '☆ Add to Watchlist';
+  wb.className    = 'wbtn' + (wl.includes(s.ticker) ? ' on' : '');
+  wb.style.cssText = 'width:100%;height:42px;font-size:14px;border-radius:8px';
+
+  // Reset period tabs to 1Y
+  document.querySelectorAll('.ptab').forEach(t => t.classList.toggle('active', t.textContent === '1Y'));
+
+  // Show detail view
+  document.getElementById('dv').style.display = 'block';
+  document.body.style.overflow = 'hidden';
+
+  // Load chart and 7-day data
+  await loadChart(s.ticker, '1y');
+}
+
+function closeDV() {
+  document.getElementById('dv').style.display = 'none';
+  document.body.style.overflow = '';
+  curS = null;
+}
+
+async function setPer(p, el) {
+  document.querySelectorAll('.ptab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  if (curS) await loadChart(curS.ticker, p);
+}
+
+// ── CHART LOADING ────────────────────────────────────────────
+async function loadChart(ticker, period) {
+  const canvas = document.getElementById('dchart');
+  const ctx    = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  document.getElementById('d7t').innerHTML = '<div style="color:var(--muted);font-size:12px;padding:8px 0">Loading…</div>';
+
+  try {
+    // FMP historical prices (ticker already has .TO suffix)
+    const dayMap = { '7d':10, '1mo':35, '3mo':95, '6mo':185, '1y':370 };
+    const days   = dayMap[period] || 370;
+    // Ticker already has .TO suffix from BASE_SYMBOLS
+    const sym = ticker.includes('.TO') ? ticker : ticker + '.TO';
+    const url = `${FMP_BASE}/historical-price-full/${sym}?timeseries=${days}&apikey=${API_KEY}`;
+    const data = await fetchJSON(url);
+
+    const raw = data?.historical;
+    if (!raw || !raw.length) throw new Error('No historical data');
+
+    // FMP returns newest-first — reverse to oldest-first for chart
+    const hist = raw.slice().reverse().map(d => ({
+      date:   new Date(d.date + 'T12:00:00'),
+      open:   d.open,
+      high:   d.high,
+      low:    d.low,
+      close:  d.close,
+      volume: d.volume
+    }));
+
+    if (hist.length > 1) drawChart(canvas, hist);
+    else {
+      ctx.fillStyle = 'rgba(90,115,152,.8)';
+      ctx.font = '11px Space Mono';
+      ctx.fillText('No chart data available', 20, 90);
+    }
+
+    // 7-day table: last 7 entries of the full history (already sorted oldest→newest)
+    const last7 = hist.slice(-7);
+    render7(last7);
+
+  } catch(e) {
+    console.warn('Chart load failed:', e.message);
+    ctx.fillStyle = 'rgba(255,77,109,.8)';
+    ctx.font = '11px Space Mono';
+    ctx.fillText('Chart unavailable', 20, 90);
+    document.getElementById('d7t').innerHTML = '<div style="color:var(--danger);font-size:12px">Could not load historical data.</div>';
+  }
+}
+
+// ── CHART DRAWING ────────────────────────────────────────────
+function drawChart(canvas, data) {
+  const dpr = window.devicePixelRatio || 1;
+  const W   = (canvas.parentElement.clientWidth - 12) || 300;
+  const H   = 180;
+  canvas.width  = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width  = W + 'px';
+  canvas.style.height = H + 'px';
+
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  const pad = { t:14, r:8, b:22, l:48 };
+  const cW  = W - pad.l - pad.r;
+  const cH  = H - pad.t - pad.b;
+
+  const prices = data.map(d => d.close).filter(p => p != null);
+  if (prices.length < 2) return;
+
+  const mn  = Math.min(...prices);
+  const mx  = Math.max(...prices);
+  const rng = mx - mn || 1;
+
+  const isUp = prices[prices.length - 1] >= prices[0];
+  const lc   = isUp ? '#00ff9d' : '#ff4d6d';
+
+  const xS = i => pad.l + (i / (prices.length - 1)) * cW;
+  const yS = p => pad.t + cH - ((p - mn) / rng) * cH;
+
+  // Horizontal grid lines
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.t + (cH / 4) * i;
+    ctx.strokeStyle = 'rgba(30,45,74,.9)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(W - pad.r, y); ctx.stroke();
+    ctx.fillStyle  = 'rgba(90,115,152,.9)';
+    ctx.font       = '8px Space Mono';
+    ctx.textAlign  = 'right';
+    ctx.fillText('$' + (mx - (rng / 4) * i).toFixed(2), pad.l - 3, y + 3);
+  }
+
+  // Gradient fill below line
+  ctx.beginPath();
+  prices.forEach((p, i) => i === 0 ? ctx.moveTo(xS(i), yS(p)) : ctx.lineTo(xS(i), yS(p)));
+  ctx.lineTo(xS(prices.length - 1), pad.t + cH);
+  ctx.lineTo(pad.l, pad.t + cH);
+  ctx.closePath();
+  ctx.fillStyle = isUp ? 'rgba(0,255,157,.08)' : 'rgba(255,77,109,.08)';
+  ctx.fill();
+
+  // Price line
+  ctx.beginPath();
+  prices.forEach((p, i) => i === 0 ? ctx.moveTo(xS(i), yS(p)) : ctx.lineTo(xS(i), yS(p)));
+  ctx.strokeStyle = lc;
+  ctx.lineWidth   = 2;
+  ctx.lineJoin    = 'round';
+  ctx.stroke();
+
+  // Dot at latest price
+  const lx = xS(prices.length - 1);
+  const ly = yS(prices[prices.length - 1]);
+  ctx.beginPath(); ctx.arc(lx, ly, 4, 0, Math.PI * 2);
+  ctx.fillStyle = lc; ctx.fill();
+  ctx.strokeStyle = '#070b17'; ctx.lineWidth = 2; ctx.stroke();
+
+  // X-axis date labels
+  const step = Math.max(1, Math.floor(data.length / 5));
+  ctx.fillStyle = 'rgba(90,115,152,.9)';
+  ctx.font      = '8px Space Mono';
+  ctx.textAlign = 'center';
+  for (let i = 0; i < data.length; i += step) {
+    ctx.fillText(
+      data[i].date.toLocaleDateString('en-CA', { month:'short', day:'numeric' }),
+      xS(i), H - 4
+    );
+  }
+}
+
+// ── 7-DAY TABLE ──────────────────────────────────────────────
+// data = array sorted oldest → newest (last 7 entries)
+function render7(data) {
+  const el = document.getElementById('d7t');
+  if (!data || !data.length) {
+    el.innerHTML = '<div style="color:var(--muted);font-size:12px">No data available.</div>';
+    return;
+  }
+
+  // Display newest first
+  const rows = [...data].reverse();
+
+  el.innerHTML = rows.map((d, i) => {
+    // Compare to the NEXT entry in the reversed array (i.e., the previous trading day)
+    const prevClose = rows[i + 1] ? rows[i + 1].close : d.open;
+    const chg = prevClose ? d.close - prevClose : 0;
+    const dc  = chg > 0 ? 'up' : chg < 0 ? 'dn' : 'fl';
+    const ar  = chg > 0 ? '▲' : chg < 0 ? '▼' : '—';
+    return `
+      <div class="drow">
+        <div class="ddate">${d.date.toLocaleDateString('en-CA', {weekday:'short', month:'short', day:'numeric'})}</div>
+        <div class="dohlc">
+          O:${d.open  != null ? d.open.toFixed(2)  : '—'}
+          H:${d.high  != null ? d.high.toFixed(2)  : '—'}<br>
+          L:${d.low   != null ? d.low.toFixed(2)   : '—'}
+          V:${fv(d.volume)}
+        </div>
+        <div class="dcls ${dc}">${ar} $${d.close != null ? d.close.toFixed(3) : '—'}</div>
+      </div>`;
+  }).join('');
+}
+
+// ── STATUS / LOADING / ERROR HELPERS ────────────────────────
+function setStatus(t, cls) {
+  document.getElementById('pill').className = 'pill' + (cls ? ' ' + cls : '');
+  document.getElementById('ptxt').textContent = t;
+}
+
+function setLoading(t, s) {
+  document.getElementById('list').innerHTML =
+    `<div class="lbox"><div class="spinner"></div><div class="ltxt">${t}</div><div class="lsub">${s}</div></div>`;
+}
+
+function setErr(m) {
+  document.getElementById('list').innerHTML = `<div class="ebox">⚠️ ${m}</div>`;
+}
+
+function setText(id, v) {
+  const e = document.getElementById(id);
+  if (e) e.textContent = v;
+}
+
+// ── NUMBER FORMATTERS ────────────────────────────────────────
+function fv(v) {
+  if (!v || v === 0) return '—';
+  if (v >= 1e9) return (v / 1e9).toFixed(1) + 'B';
+  if (v >= 1e6) return (v / 1e6).toFixed(1) + 'M';
+  if (v >= 1e3) return (v / 1e3).toFixed(0) + 'K';
+  return String(v);
+}
+
+function fc(v) {
+  if (!v || v === 0) return '—';
+  if (v >= 1e12) return '$' + (v / 1e12).toFixed(1) + 'T';
+  if (v >= 1e9)  return '$' + (v / 1e9).toFixed(1)  + 'B';
+  if (v >= 1e6)  return '$' + (v / 1e6).toFixed(0)  + 'M';
+  return '$' + v.toLocaleString();
+}
+
+// ── STARTUP ──────────────────────────────────────────────────
+// Hide all panels, show scanner panel
+document.getElementById('sp').style.display = 'block';
+document.getElementById('wp').style.display = 'none';
+document.getElementById('ap').style.display = 'none';
+
+if (API_KEY) {
+  showScanner();
+  init();
+} else {
+  showSetup();
+}
+
+// Auto-refresh every 5 minutes when not viewing a stock detail
+setInterval(() => {
+  if (!curS && API_KEY) init();
+}, 5 * 60 * 1000);
+
+</script>
+</body>
+</html>
